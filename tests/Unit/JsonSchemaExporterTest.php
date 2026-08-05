@@ -31,6 +31,46 @@ it('exports records, enums, refs, lists, maps and optionality to JSON Schema', f
         ->and($post['properties']['title'])->toBe(['type' => 'string']);
 });
 
+it('export without an $id is unchanged — a bare $defs document, no $id/$schema header', function () {
+    $model = (new CodegenModel)
+        ->enum('Status', ['draft', 'published'])
+        ->record('Post', fn (RecordType $r) => $r->field('id', Type::primitive(Primitive::Uuid)));
+
+    $schema = (new JsonSchemaExporter)->export($model);
+
+    expect($schema)->toHaveKey('$defs')
+        ->and($schema)->not->toHaveKey('$id')
+        ->and($schema)->not->toHaveKey('$schema')
+        ->and(array_keys($schema))->toBe(['$defs']);
+});
+
+it('export with an $id prepends $schema + $id and keeps the same $defs', function () {
+    $model = (new CodegenModel)
+        ->enum('Status', ['draft', 'published'])
+        ->record('Post', fn (RecordType $r) => $r->field('id', Type::primitive(Primitive::Uuid)));
+
+    $bare = (new JsonSchemaExporter)->export($model);
+    $bundle = (new JsonSchemaExporter)->export($model, 'https://x/model/1');
+
+    expect(array_keys($bundle))->toBe(['$schema', '$id', '$defs'])
+        ->and($bundle['$schema'])->toBe('https://json-schema.org/draft/2020-12/schema')
+        ->and($bundle['$id'])->toBe('https://x/model/1')
+        ->and($bundle['$defs'])->toBe($bare['$defs']);
+});
+
+it('export with the same $id is deterministic — identical arrays across runs (stable fingerprint)', function () {
+    $model = (new CodegenModel)
+        ->enum('Status', ['draft', 'published'])
+        ->record('Post', fn (RecordType $r) => $r
+            ->field('id', Type::primitive(Primitive::Uuid))
+            ->field('status', Type::ref('Status')));
+
+    $first = (new JsonSchemaExporter)->export($model, 'https://x/model/1');
+    $second = (new JsonSchemaExporter)->export($model, 'https://x/model/1');
+
+    expect($second)->toBe($first);
+});
+
 it('round-trips: JSON Schema -> model -> JSON Schema is stable', function () {
     $schema = [
         '$defs' => [

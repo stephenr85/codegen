@@ -14,7 +14,10 @@ use Rushing\Codegen\Model\CodegenModel;
 interface SchemaExporter
 {
     /**
+     * @param  string|null  $id  when non-empty, stamps a JSON-Schema header (`$schema` + `$id`) so the
+     *                           exported document is a registerable bundle; when null, returns the bare
+     *                           `$defs` document unchanged (codegen-substrate #07).
      * @return array<string, mixed> a decoded schema document
      */
-    public function export(CodegenModel $model): array;
+    public function export(CodegenModel $model, ?string $id = null): array;
 }

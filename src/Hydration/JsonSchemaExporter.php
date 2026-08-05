@@ -20,9 +20,21 @@ use Rushing\Codegen\Model\Type;
 class JsonSchemaExporter implements SchemaExporter
 {
     /**
+     * Export the model to a JSON Schema document.
+     *
+     * With `$id` null this returns the bare `['$defs' => [...]]` document (the model round-trips, but
+     * carries no identity). With a non-empty `$id` it prepends a JSON-Schema header (`$schema` + `$id`)
+     * so the whole model becomes ONE registerable bundle document — the write-side enabler: hand it to a
+     * write-once schema registry's `register()` (which keys/fingerprints by `$id`) to complete the
+     * model↔schema round-trip (codegen-substrate #07).
+     *
+     * The entire model bundles under a single `$id`; internal `#/$defs/...` `$ref`s stay valid inside the
+     * one document. Per-record split-registration (one `$id` per record, with `$ref` rewriting across
+     * documents) is a future refinement.
+     *
      * @return array<string, mixed>
      */
-    public function export(CodegenModel $model): array
+    public function export(CodegenModel $model, ?string $id = null): array
     {
         $defs = [];
 
@@ -56,7 +68,15 @@ class JsonSchemaExporter implements SchemaExporter
             ], fn ($v) => $v !== null && $v !== []);
         }
 
-        return ['$defs' => $defs];
+        if ($id === null || $id === '') {
+            return ['$defs' => $defs];
+        }
+
+        return [
+            '$schema' => 'https://json-schema.org/draft/2020-12/schema',
+            '$id' => $id,
+            '$defs' => $defs,
+        ];
     }
 
     /**
