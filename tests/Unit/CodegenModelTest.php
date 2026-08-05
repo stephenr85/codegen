@@ -1,0 +1,97 @@
+<?php
+
+use Rushing\Codegen\Model\CodegenModel;
+use Rushing\Codegen\Model\EnumType;
+use Rushing\Codegen\Model\ModelValidationException;
+use Rushing\Codegen\Model\Primitive;
+use Rushing\Codegen\Model\RecordType;
+use Rushing\Codegen\Model\Type;
+
+it('builds and serializes a record + operation model', function () {
+    $model = (new CodegenModel)
+        ->record('User', fn (RecordType $r) => $r
+            ->field('id', Type::primitive(Primitive::Uuid))
+            ->field('name', Type::primitive(Primitive::String))
+            ->field('age', Type::optional(Type::primitive(Primitive::Int))))
+        ->operation('listUsers', 'GET', '/users', Type::ref('User'), returnsMany: true);
+
+    $array = $model->toArray();
+
+    expect($array['records'])->toHaveCount(1)
+        ->and($array['records'][0]['name'])->toBe('User')
+        ->and($array['records'][0]['fields'])->toHaveCount(3)
+        ->and($array['records'][0]['fields'][2]['type']['kind'])->toBe('optional')
+        ->and($array['operations'][0]['method'])->toBe('GET')
+        ->and($array['operations'][0]['returnsMany'])->toBeTrue();
+});
+
+it('models enums, unions and maps', function () {
+    $model = (new CodegenModel)
+        ->enum('Status', ['draft', 'published'])
+        ->enum('Priority', fn (EnumType $e) => $e->case('low')->case('high'))
+        ->record('Post', fn (RecordType $r) => $r
+            ->field('status', Type::ref('Status'))
+            ->field('meta', Type::mapOf(Type::primitive(Primitive::String)))
+            ->field('body', Type::union([
+                Type::primitive(Primitive::String),
+                Type::ref('Post'),
+            ])));
+
+    $array = $model->toArray();
+
+    expect($array['enums'])->toHaveCount(2)
+        ->and($array['enums'][0]['cases'])->toBe(['draft', 'published'])
+        ->and($array['enums'][1]['cases'])->toBe(['low', 'high'])
+        ->and($array['records'][0]['fields'][1]['type']['kind'])->toBe('map')
+        ->and($array['records'][0]['fields'][2]['type']['kind'])->toBe('union')
+        ->and($array['records'][0]['fields'][2]['type']['variants'])->toHaveCount(2);
+});
+
+it('validates a well-formed model and returns itself', function () {
+    $model = (new CodegenModel)
+        ->enum('Status', ['draft'])
+        ->record('Post', fn (RecordType $r) => $r
+            ->field('status', Type::ref('Status')));
+
+    expect($model->validate())->toBe($model);
+});
+
+it('rejects dangling refs, empty records and duplicate names', function () {
+    $model = (new CodegenModel)
+        ->record('Empty')
+        ->record('Post', fn (RecordType $r) => $r
+            ->field('author', Type::ref('User')))            // undefined
+        ->enum('Post', ['x']);                                // duplicate name
+
+    expect(fn () => $model->validate())
+        ->toThrow(ModelValidationException::class);
+
+    try {
+        $model->validate();
+    } catch (ModelValidationException $e) {
+        expect($e->getMessage())
+            ->toContain('`Post` is declared more than once')
+            ->toContain('record `Empty` has no fields')
+            ->toContain('undefined type `User`');
+    }
+});
+
+it('allows external refs to point outside the model without failing validation', function () {
+    $model = (new CodegenModel)
+        ->operation('listUsers', 'GET', '/users', Type::external('App.Data.User'), returnsMany: true)
+        ->record('Local', fn (RecordType $r) => $r
+            ->field('external', Type::external('App.Data.Thing'))
+            ->field('internalList', Type::listOf(Type::external('App.Data.Item'))));
+
+    expect($model->validate())->toBe($model)
+        ->and($model->toArray()['operations'][0]['returns'])->toBe(['kind' => 'external', 'ref' => 'App.Data.User']);
+});
+
+it('resolves refs nested inside list/optional/union when validating', function () {
+    $model = (new CodegenModel)
+        ->record('Tag', fn (RecordType $r) => $r->field('name', Type::primitive(Primitive::String)))
+        ->record('Post', fn (RecordType $r) => $r
+            ->field('tags', Type::listOf(Type::optional(Type::ref('Tag')))));
+
+    expect($model->validate())->toBe($model);
+});
