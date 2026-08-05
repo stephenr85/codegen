@@ -11,10 +11,11 @@ namespace Rushing\Codegen\Model;
  *
  * Vocabulary borrowed from Smithy shapes / TypeSpec's type algebra rather than invented ad-hoc.
  *
- * NOTE (codegen-substrate #08): this enum is the primitive vocabulary slated to be promoted DOWN
- * into the open schemastud foundation (likely alongside laravel-data-schemas) once the seam proves
- * out. It is born here to avoid premature churn on the most-depended-on packages, not because this
- * is its final home.
+ * HOME (codegen-substrate #08, decided): this is the canonical home. `rushing/codegen` is already
+ * open, so the vocabulary is public here; it is deliberately NOT promoted down into schemastud. If a
+ * schemastud-tier package ever wants a value-object type model, it depends UP on `rushing/codegen`
+ * rather than the vocabulary being fragmented across the foundation — codegen is the type-vocabulary
+ * substrate, not a consumer of it.
  */
 enum TypeKind: string
 {
