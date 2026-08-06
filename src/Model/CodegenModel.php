@@ -80,6 +80,7 @@ class CodegenModel
     /**
      * @param  list<string>  $methods
      * @param  array<string, mixed>  $meta
+     * @param  Field[]  $params
      */
     public function operation(
         string $name,
@@ -90,8 +91,10 @@ class CodegenModel
         ?string $doc = null,
         array $methods = [],
         array $meta = [],
+        array $params = [],
+        ?RecordType $body = null,
     ): static {
-        $this->operations[] = new Operation($name, $method, $path, $returns, $returnsMany, $doc, $methods ?: [$method], $meta);
+        $this->operations[] = new Operation($name, $method, $path, $returns, $returnsMany, $doc, $methods ?: [$method], $meta, $params, $body);
 
         return $this;
     }

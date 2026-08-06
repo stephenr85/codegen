@@ -18,6 +18,11 @@ class Operation
      *                                      the type vocabulary — e.g. `['realm' => 'admin']` (which client
      *                                      answers it). An escape hatch, deliberately untyped, so host
      *                                      concerns ride along without polluting the core model.
+     * @param  Field[]  $params  the operation's path/query parameters as typed fields (name + {@see Type} +
+     *                           doc) — the request-surface counterpart of a record's fields. Empty when the
+     *                           source carries no parameter schema (e.g. a bare route manifest).
+     * @param  ?RecordType  $body  the request body modeled as a record of typed fields, when the source
+     *                             supplies one (an OpenAPI `requestBody` schema). Null for reads / bodyless ops.
      */
     public function __construct(
         public string $name,
@@ -28,6 +33,8 @@ class Operation
         public ?string $doc = null,
         public array $methods = [],
         public array $meta = [],
+        public array $params = [],
+        public ?RecordType $body = null,
     ) {}
 
     /**
@@ -42,6 +49,8 @@ class Operation
             'path' => $this->path,
             'returns' => $this->returns?->toArray(),
             'returnsMany' => $this->returnsMany ?: null,
+            'params' => $this->params === [] ? null : array_map(fn (Field $f) => $f->toArray(), $this->params),
+            'body' => $this->body?->toArray(),
             'meta' => $this->meta ?: null,
             'doc' => $this->doc,
         ], fn ($v) => $v !== null);

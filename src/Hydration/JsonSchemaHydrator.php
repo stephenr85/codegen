@@ -65,9 +65,13 @@ class JsonSchemaHydrator implements SchemaHydrator
     }
 
     /**
+     * Map a single JSON Schema property/value schema to a {@see Type}. Public so a consumer that hydrates
+     * operations (path params, request-body fields) off an OpenAPI document — not just top-level records —
+     * can reuse the exact same type mapping instead of re-deriving it. `hydrate()` uses this internally.
+     *
      * @param  array<string, mixed>|mixed  $schema
      */
-    private function typeFor(mixed $schema): Type
+    public function typeFor(mixed $schema): Type
     {
         if (! is_array($schema)) {
             return Type::primitive(Primitive::Json);
