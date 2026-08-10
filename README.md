@@ -32,8 +32,7 @@ sandboxing, and grants from popcorn and stays tiny.
 
 ## Status
 
-Skeleton (codegen-substrate v1). See `.scratch/codegen-substrate/` in the app repo for the PRD,
-the research-wheel verdict, the atomize nomination report, and the tracked issues.
+Skeleton (codegen-substrate v1).
 
 ## Style
 
