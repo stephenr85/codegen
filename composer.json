@@ -1,7 +1,15 @@
 {
     "name": "rushing/codegen",
     "description": "A framework-free kernel for language-neutral code generation: a fluent semantic meta-model (records, operations, type-kinds) hydrated from JSON Schema, driven to any target by generators that are popcorn invocables.",
-    "keywords": ["codegen", "code-generation", "meta-model", "invocable", "sdk", "schema", "registry"],
+    "keywords": [
+        "codegen",
+        "code-generation",
+        "meta-model",
+        "invocable",
+        "sdk",
+        "schema",
+        "registry"
+    ],
     "license": "proprietary",
     "authors": [
         {
@@ -15,7 +23,8 @@
     },
     "require-dev": {
         "laravel/pint": "^1.0",
-        "pestphp/pest": "^3.0"
+        "pestphp/pest": "^3.0",
+        "wikimedia/composer-merge-plugin": "^2.1"
     },
     "autoload": {
         "psr-4": {
@@ -29,23 +38,30 @@
     },
     "extra": {
         "package-topology": {
-            "mustRequire": ["rushing/php-popcorn"],
-            "mustNotRequire": ["illuminate/*"]
+            "mustRequire": [
+                "rushing/php-popcorn"
+            ],
+            "mustNotRequire": [
+                "illuminate/*"
+            ]
+        },
+        "merge-plugin": {
+            "include": [
+                "composer.local.json"
+            ]
         }
     },
     "config": {
         "allow-plugins": {
-            "pestphp/pest-plugin": true
+            "pestphp/pest-plugin": true,
+            "wikimedia/composer-merge-plugin": true
         },
         "sort-packages": true
     },
     "repositories": [
         {
-            "type": "path",
-            "url": "../php-popcorn",
-            "options": {
-                "symlink": true
-            }
+            "type": "git",
+            "url": "https://github.com/stephenr85/php-popcorn.git"
         }
     ],
     "minimum-stability": "dev",
