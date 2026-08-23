@@ -4,7 +4,6 @@ namespace Rushing\Codegen;
 
 use Rushing\Codegen\Contracts\Generator;
 use Rushing\Codegen\Model\CodegenModel;
-use Rushing\Popcorn\Contracts\Invocable;
 use Rushing\Popcorn\InvocableRegistry;
 use Rushing\Popcorn\Registries\Authorizer;
 use Rushing\Popcorn\Registries\BasicRegistry;
@@ -82,24 +81,14 @@ class GeneratorRegistry implements Gated, Registry
      * The registered stack ids, as callers spelled them — {@see keys()} with the declared root
      * stripped back off, because keys go relative in and absolute out (ticket 20 D2).
      *
-     * A foreign {@see RegistryKey} is never stamped with a root, so it comes back whole — the same
-     * case `InvocableRegistry::names()` carries, and the reason this is a segment comparison rather
-     * than a string prefix strip (ticket 23's amendment).
+     * The un-stamping is the kernel's, not this class's: it is the inverse of `door()` and lives
+     * beside it, which is also why a foreign key comes back whole rather than being string-stripped.
      *
      * @return string[]
      */
     public function stacks(): array
     {
-        $root = $this->entries->declaration()->rootKey()->segments();
-        $depth = count($root);
-
-        return array_map(function (RegistryKey $key) use ($root, $depth): string {
-            $segments = $key->segments();
-
-            return array_slice($segments, 0, $depth) === $root
-                ? implode('.', array_slice($segments, $depth))
-                : (string) $key;
-        }, $this->keys());
+        return $this->entries->relativeKeys();
     }
 
     public function has(RegistryKey|string $key): bool
@@ -150,7 +139,7 @@ class GeneratorRegistry implements Gated, Registry
      */
     public function generate(string $stack, CodegenModel $model, array $options = []): array
     {
-        /** @var Invocable $generator */
+        /** @var Generator $generator */
         $generator = $this->resolve($stack);
 
         $out = $generator->invoke([
