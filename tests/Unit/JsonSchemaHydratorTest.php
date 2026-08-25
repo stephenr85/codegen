@@ -67,3 +67,33 @@ it('treats a titled root object as a record', function () {
     expect($model->records)->toHaveKey('User')
         ->and($model->records['User']->fields[0]->name)->toBe('id');
 });
+
+it('lets the caller name the root record, overriding the title', function () {
+    // The root has no `$defs` key to be named by, so historically its name came from `title`. A
+    // caller holding the schema's identity (the registry path holds its `$id`) names it instead.
+    $schema = [
+        'title' => 'Early access request',
+        'type' => 'object',
+        'required' => ['email'],
+        'properties' => ['email' => ['type' => 'string']],
+    ];
+
+    $model = (new JsonSchemaHydrator)->hydrate($schema, 'IntakeWaitlistData');
+
+    expect($model->records)->toHaveKey('IntakeWaitlistData')
+        ->and($model->records)->not->toHaveKey('Early access request')
+        ->and($model->records['IntakeWaitlistData']->fields[0]->name)->toBe('email');
+});
+
+
+it('hydrates no root record when nothing names it', function () {
+    // `llm_strict` mode unsets `title`, so such a document reaches here nameless. That must stay a
+    // no-op rather than inventing a name — but see CodegenModel::validate(), which is where an
+    // ILLEGAL name is caught rather than being carried downstream to the generator.
+    $schema = [
+        'type' => 'object',
+        'properties' => ['email' => ['type' => 'string']],
+    ];
+
+    expect((new JsonSchemaHydrator)->hydrate($schema)->records)->toBe([]);
+});

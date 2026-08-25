@@ -33,7 +33,12 @@ class TerraformSchemaHydrator implements SchemaHydrator
     /**
      * @param  array<string, mixed>  $jsonSchema  a decoded `tofu providers schema -json` document
      */
-    public function hydrate(array $jsonSchema): CodegenModel
+    /**
+     * `$rootName` is accepted for contract conformance and ignored: a provider schema document has no
+     * single root record — every `resource_schemas` key names its own, structurally, which is why this
+     * hydrator never had the naming problem the JSON Schema one does.
+     */
+    public function hydrate(array $jsonSchema, ?string $rootName = null): CodegenModel
     {
         $model = new CodegenModel;
 

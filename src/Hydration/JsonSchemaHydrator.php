@@ -25,15 +25,18 @@ class JsonSchemaHydrator implements SchemaHydrator
     /**
      * @param  array<string, mixed>  $jsonSchema
      */
-    public function hydrate(array $jsonSchema): CodegenModel
+    public function hydrate(array $jsonSchema, ?string $rootName = null): CodegenModel
     {
         $model = new CodegenModel;
 
         $defs = $jsonSchema['$defs'] ?? $jsonSchema['definitions'] ?? [];
 
-        // The root itself may be a named object schema.
-        if (isset($jsonSchema['title']) && ($jsonSchema['type'] ?? null) === 'object') {
-            $defs[$jsonSchema['title']] = $jsonSchema;
+        // The root itself may be a named object schema. Its name is the caller's to give — see
+        // SchemaHydrator::hydrate() for why `title` is only the fallback and not the source of truth.
+        $root = $rootName ?? ($jsonSchema['title'] ?? null);
+
+        if ($root !== null && ($jsonSchema['type'] ?? null) === 'object') {
+            $defs[$root] = $jsonSchema;
         }
 
         foreach ($defs as $name => $schema) {

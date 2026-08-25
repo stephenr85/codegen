@@ -95,3 +95,21 @@ it('resolves refs nested inside list/optional/union when validating', function (
 
     expect($model->validate())->toBe($model);
 });
+
+it('refuses a type name that is not a legal identifier', function () {
+    // The name becomes a class name in every target language. Caught here, where the model still knows
+    // WHICH record is at fault — not in nette's addClass(), four packages downstream of the schema that
+    // caused it, where the failure reads as a generator crash.
+    $model = (new CodegenModel)
+        ->record('Early access request', fn (RecordType $r) => $r->field('email', Type::primitive(Primitive::String)));
+
+    expect(fn () => $model->validate())
+        ->toThrow(ModelValidationException::class, 'is not a legal identifier');
+});
+
+it('accepts legal identifiers including underscores', function () {
+    $model = (new CodegenModel)
+        ->record('_Internal2', fn (RecordType $r) => $r->field('a', Type::primitive(Primitive::String)));
+
+    expect($model->validate())->toBeInstanceOf(CodegenModel::class);
+});

@@ -115,6 +115,18 @@ class CodegenModel
             $problems[] = "type name `{$name}` is declared more than once";
         }
 
+        // A type name becomes a class/interface/struct name in every target language, so an illegal
+        // identifier is a model defect — not a generator one. Checked HERE because the model is the
+        // last place that knows which record is at fault: by the time nette's `addClass()` rejects it,
+        // the failure reads as a generator crash four packages downstream from the schema that caused
+        // it. The predicate is the PHP/TS/Rust-common subset (leading letter or underscore, then
+        // alphanumerics), deliberately stricter than any single target so one model serves all three.
+        foreach ($known as $name) {
+            if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $name) !== 1) {
+                $problems[] = "type name `{$name}` is not a legal identifier";
+            }
+        }
+
         foreach ($this->records as $record) {
             if ($record->fields === []) {
                 $problems[] = "record `{$record->name}` has no fields";
