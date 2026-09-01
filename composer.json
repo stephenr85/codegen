@@ -10,7 +10,7 @@
         "schema",
         "registry"
     ],
-    "license": "proprietary",
+    "license": "MIT",
     "authors": [
         {
             "name": "Stephen Rushing",
