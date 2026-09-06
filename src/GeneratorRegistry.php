@@ -13,7 +13,6 @@ use Rushing\Popcorn\Registries\IsRegistry;
 use Rushing\Popcorn\Registries\OnDuplicate;
 use Rushing\Popcorn\Registries\Optionality;
 use Rushing\Popcorn\Registries\Registry;
-use Rushing\Popcorn\Registries\RegistryArity;
 use Rushing\Popcorn\Registries\RegistryKey;
 
 /**
@@ -41,13 +40,10 @@ use Rushing\Popcorn\Registries\RegistryKey;
  */
 #[IsRegistry(
     root: 'codegen.generators',
-    of: 'code generators, one per target stack/language',
-    arity: RegistryArity::PickOne,
     entryType: Generator::class,
     onDuplicate: OnDuplicate::Supersede,
     optionality: Optionality::Optional,
-    note: 'A later registration of the same stack id overrides the earlier one: a host swapping the '
-        .'shipped `ts-client` emitter for its own is the seam, not an accident.',
+    description: 'code generators, one per target stack/language. A later registration of the same stack id overrides the earlier one: a host swapping the shipped `ts-client` emitter for its own is the seam, not an accident.',
 )]
 class GeneratorRegistry implements Gated, Registry
 {
