@@ -6,6 +6,7 @@ use Rushing\Codegen\Model\CodegenModel;
 use Rushing\Codegen\Model\Primitive;
 use Rushing\Codegen\Model\RecordType;
 use Rushing\Codegen\Model\Type;
+use Rushing\Codegen\Model\TypeKind;
 
 it('exports records, enums, refs, lists, maps and optionality to JSON Schema', function () {
     $model = (new CodegenModel)
@@ -100,3 +101,25 @@ it('round-trips: JSON Schema -> model -> JSON Schema is stable', function () {
         ->and($out['$defs']['Post']['properties']['status'])->toBe(['$ref' => '#/$defs/Status'])
         ->and($out['$defs']['Status']['enum'])->toBe(['draft', 'published']);
 });
+
+it('rejects invalid union composition at construction and after public mutation', function () {
+    $variants = [Type::literal('yes'), Type::literal('no')];
+
+    expect(fn () => Type::union($variants, 'allOf'))->toThrow(InvalidArgumentException::class, 'Union composition must be oneOf, anyOf, or null')
+        ->and(fn () => new Type(TypeKind::Union, variants: $variants, composition: 'unknown'))->toThrow(InvalidArgumentException::class);
+
+    $type = Type::union($variants);
+    $model = (new CodegenModel)->alias('Answer', $type);
+    $type->composition = 'unexpectedSchemaKey';
+
+    expect(fn () => (new JsonSchemaExporter)->export($model))->toThrow(InvalidArgumentException::class, 'Union composition must be oneOf, anyOf, or null');
+});
+
+it('retains supported public union composition values', function (?string $composition) {
+    $type = Type::union([Type::literal('yes'), Type::literal('no')], $composition);
+    $model = (new CodegenModel)->alias('Answer', $type);
+
+    expect((new JsonSchemaExporter)->export($model))->toBe(['$defs' => ['Answer' => [
+        $composition ?? 'oneOf' => [['const' => 'yes'], ['const' => 'no']],
+    ]]]);
+})->with([null, 'oneOf', 'anyOf']);

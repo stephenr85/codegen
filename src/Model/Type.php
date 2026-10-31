@@ -2,6 +2,8 @@
 
 namespace Rushing\Codegen\Model;
 
+use InvalidArgumentException;
+
 /**
  * A type reference in the semantic model — a {@see TypeKind} plus whatever detail that kind needs
  * (a {@see Primitive} for scalars, an inner {@see Type} for list/optional, a name for a record ref).
@@ -31,7 +33,9 @@ class Type
         public array $fields = [],
         public string|int|float|bool|null $literal = null,
         public ?string $composition = null,
-    ) {}
+    ) {
+        $this->assertValidComposition();
+    }
 
     public static function primitive(Primitive $primitive): static
     {
@@ -105,6 +109,9 @@ class Type
      */
     public function toArray(): array
     {
+        // Public fields are mutable; recheck before a generator or exporter receives the type.
+        $this->assertValidComposition();
+
         return array_filter([
             'kind' => $this->kind->value,
             'primitive' => $this->primitive?->value,
@@ -119,5 +126,12 @@ class Type
                 ? null
                 : array_map(fn (Type $t) => $t->toArray(), $this->variants),
         ], fn ($v) => $v !== null) + ($this->kind === TypeKind::Literal ? ['literal' => $this->literal] : []);
+    }
+
+    private function assertValidComposition(): void
+    {
+        if (! in_array($this->composition, [null, 'oneOf', 'anyOf'], true)) {
+            throw new InvalidArgumentException('Union composition must be oneOf, anyOf, or null');
+        }
     }
 }
