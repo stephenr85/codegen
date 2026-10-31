@@ -4,13 +4,14 @@ namespace Rushing\Codegen\Hydration;
 
 use Rushing\Codegen\Contracts\SchemaHydrator;
 use Rushing\Codegen\Model\CodegenModel;
+use Rushing\Codegen\Model\Field;
 use Rushing\Codegen\Model\Primitive;
 use Rushing\Codegen\Model\RecordType;
 use Rushing\Codegen\Model\Type;
 
 /**
  * Hydrates a {@see CodegenModel} from a JSON Schema document — the v1 source path (codegen-substrate
- * #03). Named schemas under `$defs`/`definitions` (and the root, if titled) become records/enums;
+ * #03). Named schemas under `$defs`/`definitions` (and the root, if titled) become records/enums/aliases;
  * property schemas map to the type-kind vocabulary.
  *
  * Scope (skeleton, honest about its edges):
@@ -18,7 +19,8 @@ use Rushing\Codegen\Model\Type;
  *   `$ref` resolution is a solved problem to ADOPT a resolver for (research-wheel), not hand-roll.
  * - Inline nested objects (an object schema with `properties` but no name/`$ref`) are best-effort
  *   mapped to {@see Primitive::Json} rather than synthesizing anonymous records — a named `$def` is the
- *   supported way to model a nested record. This keeps the skeleton bounded; #03 may lift it later.
+ *   supported way to model a nested record. Named compositions retain inline records so their
+ *   required discriminator literals are preserved.
  */
 class JsonSchemaHydrator implements SchemaHydrator
 {
@@ -31,16 +33,23 @@ class JsonSchemaHydrator implements SchemaHydrator
 
         $defs = $jsonSchema['$defs'] ?? $jsonSchema['definitions'] ?? [];
 
-        // The root itself may be a named object schema. Its name is the caller's to give — see
+        // The root itself may be a named object or composition schema. Its name is the caller's to give — see
         // SchemaHydrator::hydrate() for why `title` is only the fallback and not the source of truth.
         $root = $rootName ?? ($jsonSchema['title'] ?? null);
 
-        if ($root !== null && ($jsonSchema['type'] ?? null) === 'object') {
+        if ($root !== null && (($jsonSchema['type'] ?? null) === 'object'
+            || isset($jsonSchema['oneOf']) || isset($jsonSchema['anyOf']) || isset($jsonSchema['allOf']))) {
             $defs[$root] = $jsonSchema;
         }
 
         foreach ($defs as $name => $schema) {
             if (! is_array($schema)) {
+                continue;
+            }
+
+            if (isset($schema['oneOf']) || isset($schema['anyOf']) || isset($schema['allOf'])) {
+                $model->alias($name, $this->typeFor($schema, preserveComposition: true), $schema['description'] ?? null);
+
                 continue;
             }
 
@@ -73,11 +82,20 @@ class JsonSchemaHydrator implements SchemaHydrator
      * can reuse the exact same type mapping instead of re-deriving it. `hydrate()` uses this internally.
      *
      * @param  array<string, mixed>|mixed  $schema
+     * @param  bool  $preserveComposition  retain exact union branches and inline records within named compositions
      */
-    public function typeFor(mixed $schema): Type
+    public function typeFor(mixed $schema, bool $preserveComposition = false): Type
     {
         if (! is_array($schema)) {
             return Type::primitive(Primitive::Json);
+        }
+
+        if (array_key_exists('const', $schema)) {
+            return Type::literal($schema['const']);
+        }
+
+        if (isset($schema['allOf']) && is_array($schema['allOf'])) {
+            return Type::intersection(array_map(fn ($member) => $this->typeFor($member, preserveComposition: true), $schema['allOf']));
         }
 
         if (isset($schema['$ref']) && is_string($schema['$ref'])) {
@@ -86,8 +104,29 @@ class JsonSchemaHydrator implements SchemaHydrator
 
         foreach (['oneOf', 'anyOf'] as $union) {
             if (isset($schema[$union]) && is_array($schema[$union])) {
-                return $this->unionOrOptional($schema[$union]);
+                return $preserveComposition
+                    ? Type::union(array_map(fn ($member) => $this->typeFor($member, preserveComposition: true), $schema[$union]), $union === 'anyOf' ? 'anyOf' : null)
+                    : $this->unionOrOptional($schema[$union]);
             }
+        }
+
+        // Composition members must retain their object constraints, especially required literal
+        // discriminators. Ordinary anonymous properties retain the established JSON fallback.
+        if ($preserveComposition && isset($schema['properties'])) {
+            $fields = [];
+            foreach ($schema['properties'] as $name => $property) {
+                $type = $this->typeFor($property, preserveComposition: true);
+                if (! in_array($name, $schema['required'] ?? [], true)) {
+                    $type = Type::optional($type);
+                }
+                $fields[] = new Field($name, $type, $property['description'] ?? null);
+            }
+
+            return Type::record($fields);
+        }
+
+        if ($preserveComposition && ($schema['type'] ?? null) === 'null') {
+            return Type::literal(null);
         }
 
         // A nullable type array, e.g. ['type' => ['string', 'null']].
@@ -99,9 +138,9 @@ class JsonSchemaHydrator implements SchemaHydrator
         }
 
         return match ($schema['type'] ?? null) {
-            'array' => Type::listOf($this->typeFor($schema['items'] ?? [])),
+            'array' => Type::listOf($this->typeFor($schema['items'] ?? [], $preserveComposition)),
             'object' => isset($schema['additionalProperties']) && ! isset($schema['properties'])
-                ? Type::mapOf($this->typeFor($schema['additionalProperties']))
+                ? Type::mapOf($this->typeFor($schema['additionalProperties'], $preserveComposition))
                 : Type::primitive(Primitive::Json),
             'string' => Type::primitive($this->stringFormat($schema['format'] ?? null)),
             'integer' => Type::primitive(Primitive::Int),

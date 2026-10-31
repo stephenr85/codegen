@@ -2,6 +2,7 @@
 
 use Rushing\Codegen\Model\CodegenModel;
 use Rushing\Codegen\Model\EnumType;
+use Rushing\Codegen\Model\Field;
 use Rushing\Codegen\Model\ModelValidationException;
 use Rushing\Codegen\Model\Primitive;
 use Rushing\Codegen\Model\RecordType;
@@ -112,4 +113,45 @@ it('accepts legal identifiers including underscores', function () {
         ->record('_Internal2', fn (RecordType $r) => $r->field('a', Type::primitive(Primitive::String)));
 
     expect($model->validate())->toBeInstanceOf(CodegenModel::class);
+});
+
+it('validates named aliases in operation returns and recursive record fields', function () {
+    $model = (new CodegenModel)
+        ->alias('Node', Type::union([Type::ref('Branch'), Type::literal(null)]))
+        ->record('Branch', fn (RecordType $r) => $r->field('children', Type::listOf(Type::ref('Node'))))
+        ->operation('getTree', 'GET', '/tree', Type::ref('Node'));
+
+    expect($model->validate())->toBe($model);
+});
+
+it('rejects undefined refs nested inside alias intersections and inline record fields', function () {
+    $model = (new CodegenModel)->alias('Node', Type::union([
+        Type::intersection([
+            Type::ref('MissingBranch'),
+            Type::record([new Field('child', Type::mapOf(Type::optional(Type::ref('MissingChild'))))]),
+        ]),
+    ]));
+
+    try {
+        $model->validate();
+        test()->fail('Expected alias reference validation to fail');
+    } catch (ModelValidationException $e) {
+        expect($e->getMessage())->toContain('alias `Node` references undefined type `MissingBranch`')
+            ->toContain('alias `Node` references undefined type `MissingChild`');
+    }
+});
+
+it('rejects alias name collisions and illegal alias identifiers', function () {
+    $model = (new CodegenModel)
+        ->enum('Node', ['leaf'])
+        ->alias('Node', Type::literal('leaf'))
+        ->alias('invalid-name', Type::literal(null));
+
+    try {
+        $model->validate();
+        test()->fail('Expected alias name validation to fail');
+    } catch (ModelValidationException $e) {
+        expect($e->getMessage())->toContain('type name `Node` is declared more than once')
+            ->toContain('type name `invalid-name` is not a legal identifier');
+    }
 });

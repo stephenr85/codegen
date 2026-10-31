@@ -23,6 +23,8 @@ enum TypeKind: string
     case Record = 'record';
     case Enumeration = 'enum';
     case Union = 'union';
+    case Intersection = 'intersection';
+    case Literal = 'literal';
     case ListOf = 'list';
     case MapOf = 'map';
     case Optional = 'optional';

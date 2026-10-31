@@ -1,5 +1,6 @@
 <?php
 
+use Rushing\Codegen\Hydration\JsonSchemaExporter;
 use Rushing\Codegen\Hydration\JsonSchemaHydrator;
 
 it('hydrates records, enums, refs, lists, maps and optionality from JSON Schema', function () {
@@ -85,7 +86,6 @@ it('lets the caller name the root record, overriding the title', function () {
         ->and($model->records['IntakeWaitlistData']->fields[0]->name)->toBe('email');
 });
 
-
 it('hydrates no root record when nothing names it', function () {
     // `llm_strict` mode unsets `title`, so such a document reaches here nameless. That must stay a
     // no-op rather than inventing a name — but see CodegenModel::validate(), which is where an
@@ -96,4 +96,66 @@ it('hydrates no root record when nothing names it', function () {
     ];
 
     expect((new JsonSchemaHydrator)->hydrate($schema)->records)->toBe([]);
+});
+
+it('preserves a recursive named discriminated union through model validation and schema export', function () {
+    // Same shape as the SDK's JsonNode components: each branch intersects a named
+    // record with a required literal discriminator, and records refer back to it.
+    $schema = ['$defs' => [
+        'JsonNode' => ['oneOf' => [
+            ['allOf' => [
+                ['$ref' => '#/$defs/BlockNode'],
+                ['type' => 'object', 'properties' => ['kind' => ['const' => 'block']], 'required' => ['kind']],
+            ]],
+            ['allOf' => [
+                ['$ref' => '#/$defs/TextNode'],
+                ['type' => 'object', 'properties' => ['kind' => ['const' => 'text']], 'required' => ['kind']],
+            ]],
+        ]],
+        'BlockNode' => ['type' => 'object', 'required' => ['children', 'slots'], 'properties' => [
+            'children' => ['type' => 'array', 'items' => ['$ref' => '#/$defs/JsonNode']],
+            'slots' => ['type' => 'object', 'additionalProperties' => ['$ref' => '#/$defs/JsonNode']],
+        ]],
+        'TextNode' => ['type' => 'object', 'required' => ['text'], 'properties' => ['text' => ['type' => 'string']]],
+        'Canvas' => ['type' => 'object', 'required' => ['body'], 'properties' => ['body' => ['$ref' => '#/$defs/JsonNode']]],
+    ]];
+
+    $model = (new JsonSchemaHydrator)->hydrate($schema)->validate();
+    $exported = (new JsonSchemaExporter)->export($model);
+
+    expect($exported)->toEqual($schema);
+    // The sum remains named and recursive, not replaced by an opaque JSON value.
+    expect($model->toArray()['aliases'][0]['name'])->toBe('JsonNode')
+        ->and($model->toArray()['aliases'][0]['type']['kind'])->toBe('union')
+        ->and((new JsonSchemaHydrator)->hydrate($exported)->validate()->toArray())->toEqual($model->toArray());
+});
+
+it('preserves nested anyOf and literal values without collapsing a named union', function () {
+    $schema = ['$defs' => [
+        'Value' => ['description' => 'A recursive value', 'anyOf' => [
+            ['const' => null],
+            ['const' => false],
+            ['const' => 0],
+            ['const' => ''],
+            ['type' => 'array', 'items' => ['oneOf' => [['$ref' => '#/$defs/Value']]]],
+            ['type' => 'object', 'properties' => [
+                'child' => ['anyOf' => [['$ref' => '#/$defs/Value'], ['const' => null]]],
+            ]],
+        ]],
+    ]];
+
+    $model = (new JsonSchemaHydrator)->hydrate($schema)->validate();
+    $exported = (new JsonSchemaExporter)->export($model);
+
+    expect($exported)->toEqual($schema)
+        ->and((new JsonSchemaHydrator)->hydrate($exported)->validate()->toArray())->toEqual($model->toArray());
+});
+
+it('hydrates an explicitly named root union without inventing a record', function () {
+    $schema = ['oneOf' => [['const' => 'yes'], ['const' => 'no']]];
+    $model = (new JsonSchemaHydrator)->hydrate($schema, 'Answer')->validate();
+
+    expect((new JsonSchemaExporter)->export($model))
+        ->toBe(['$defs' => ['Answer' => $schema]])
+        ->and($model->records)->toBe([]);
 });

@@ -68,6 +68,10 @@ class JsonSchemaExporter implements SchemaExporter
             ], fn ($v) => $v !== null && $v !== []);
         }
 
+        foreach ($model->aliases as $alias) {
+            $defs[$alias->name] = $this->schemaFor($alias->type->toArray(), $alias->doc);
+        }
+
         if ($id === null || $id === '') {
             return ['$defs' => $defs];
         }
@@ -91,7 +95,10 @@ class JsonSchemaExporter implements SchemaExporter
             'list' => ['type' => 'array', 'items' => $this->schemaFor($type['inner'] ?? [])],
             'map' => ['type' => 'object', 'additionalProperties' => $this->schemaFor($type['value'] ?? [])],
             'optional' => $this->schemaFor($type['inner'] ?? []),
-            'union' => ['oneOf' => array_map(fn ($v) => $this->schemaFor($v), $type['variants'] ?? [])],
+            'literal' => ['const' => $type['literal']],
+            'record' => $this->record($type['fields'] ?? []),
+            'intersection' => ['allOf' => array_map(fn ($v) => $this->schemaFor($v), $type['variants'] ?? [])],
+            'union' => [$type['composition'] ?? 'oneOf' => array_map(fn ($v) => $this->schemaFor($v), $type['variants'] ?? [])],
             default => [],
         };
 
@@ -100,6 +107,26 @@ class JsonSchemaExporter implements SchemaExporter
         }
 
         return $schema;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $fields
+     * @return array<string, mixed>
+     */
+    private function record(array $fields): array
+    {
+        $properties = [];
+        $required = [];
+        foreach ($fields as $field) {
+            $type = $field['type'];
+            $optional = $type['kind'] === 'optional';
+            $properties[$field['name']] = $this->schemaFor($optional ? $type['inner'] : $type, $field['doc'] ?? null);
+            if (! $optional) {
+                $required[] = $field['name'];
+            }
+        }
+
+        return array_filter(['type' => 'object', 'properties' => $properties, 'required' => $required], fn ($v) => $v !== []);
     }
 
     /**

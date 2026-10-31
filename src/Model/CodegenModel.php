@@ -33,8 +33,18 @@ class CodegenModel
     /** @var array<string, EnumType> */
     public array $enums = [];
 
+    /** @var array<string, TypeAlias> */
+    public array $aliases = [];
+
     /** @var Operation[] */
     public array $operations = [];
+
+    public function alias(string $name, Type $type, ?string $doc = null): static
+    {
+        $this->aliases[$name] = new TypeAlias($name, $type, $doc);
+
+        return $this;
+    }
 
     /**
      * @param  Closure(RecordType): mixed|null  $define
@@ -101,13 +111,13 @@ class CodegenModel
 
     /**
      * Assert the model is safely emittable before any generator runs (codegen-substrate #01): every
-     * `ref` resolves to a defined record/enum, no name is declared twice, no record is empty. Returns
+     * `ref` resolves to a defined record/enum/alias, no name is declared twice, no record is empty. Returns
      * `$this` for chaining; throws {@see ModelValidationException} listing *all* problems at once so a
      * host fixes the model in one pass rather than one error per run.
      */
     public function validate(): static
     {
-        $known = array_merge(array_keys($this->records), array_keys($this->enums));
+        $known = array_merge(array_keys($this->records), array_keys($this->enums), array_keys($this->aliases));
         $problems = [];
 
         $dupes = array_keys(array_filter(array_count_values($known), fn (int $n) => $n > 1));
@@ -140,6 +150,14 @@ class CodegenModel
             }
         }
 
+        foreach ($this->aliases as $alias) {
+            foreach ($this->refsIn($alias->type) as $ref) {
+                if (! in_array($ref, $known, true)) {
+                    $problems[] = "alias `{$alias->name}` references undefined type `{$ref}`";
+                }
+            }
+        }
+
         foreach ($this->operations as $operation) {
             if ($operation->returns === null) {
                 continue;
@@ -159,7 +177,7 @@ class CodegenModel
     }
 
     /**
-     * Every `ref` name reachable inside a type, recursing through list/map/optional/union.
+     * Every `ref` name reachable inside a type, recursing through list/map/optional/compositions and inline records.
      *
      * @return string[]
      */
@@ -177,6 +195,10 @@ class CodegenModel
             }
         }
 
+        foreach ($type->fields as $field) {
+            $refs = array_merge($refs, $this->refsIn($field->type));
+        }
+
         return $refs;
     }
 
@@ -191,6 +213,7 @@ class CodegenModel
         return [
             'records' => array_map(fn (RecordType $r) => $r->toArray(), array_values($this->records)),
             'enums' => array_map(fn (EnumType $e) => $e->toArray(), array_values($this->enums)),
+            'aliases' => array_map(fn (TypeAlias $a) => $a->toArray(), array_values($this->aliases)),
             'operations' => array_map(fn (Operation $o) => $o->toArray(), $this->operations),
         ];
     }

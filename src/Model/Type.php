@@ -17,7 +17,9 @@ namespace Rushing\Codegen\Model;
 class Type
 {
     /**
-     * @param  Type[]  $variants  the member types of a union (kind = Union)
+     * @param  Type[]  $variants  the member types of a union or intersection
+     * @param  Field[]  $fields  the fields of an inline record
+     * @param  string|null  $composition  anyOf for an inclusive union; null retains the default oneOf
      */
     public function __construct(
         public TypeKind $kind,
@@ -26,6 +28,9 @@ class Type
         public ?Type $value = null,
         public ?string $ref = null,
         public array $variants = [],
+        public array $fields = [],
+        public string|int|float|bool|null $literal = null,
+        public ?string $composition = null,
     ) {}
 
     public static function primitive(Primitive $primitive): static
@@ -73,9 +78,26 @@ class Type
      *
      * @param  Type[]  $variants
      */
-    public static function union(array $variants): static
+    public static function union(array $variants, ?string $composition = null): static
     {
-        return new static(TypeKind::Union, variants: array_values($variants));
+        return new static(TypeKind::Union, variants: array_values($variants), composition: $composition);
+    }
+
+    /** @param Type[] $variants */
+    public static function intersection(array $variants): static
+    {
+        return new static(TypeKind::Intersection, variants: array_values($variants));
+    }
+
+    /** @param Field[] $fields */
+    public static function record(array $fields): static
+    {
+        return new static(TypeKind::Record, fields: array_values($fields));
+    }
+
+    public static function literal(string|int|float|bool|null $value): static
+    {
+        return new static(TypeKind::Literal, literal: $value);
     }
 
     /**
@@ -89,9 +111,13 @@ class Type
             'inner' => $this->inner?->toArray(),
             'value' => $this->value?->toArray(),
             'ref' => $this->ref,
+            'composition' => $this->composition,
+            'fields' => $this->kind === TypeKind::Record
+                ? array_map(fn (Field $f) => $f->toArray(), $this->fields)
+                : null,
             'variants' => $this->variants === []
                 ? null
                 : array_map(fn (Type $t) => $t->toArray(), $this->variants),
-        ], fn ($v) => $v !== null);
+        ], fn ($v) => $v !== null) + ($this->kind === TypeKind::Literal ? ['literal' => $this->literal] : []);
     }
 }
