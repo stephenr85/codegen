@@ -1,0 +1,75 @@
+---
+title: Code generators
+segment: codegen.generators
+nav_order: 100
+excerpt: One generator per target stack (ts-client, php-data, rust), each an invocable that turns a model into a file map.
+---
+
+# Code generators
+
+`codegen.generators` holds the **code generators** a host can drive, one per target **stack**:
+`ts-client`, `php-data`, `rust`, `wit-bindings` or whatever your project emits. A generator is a
+popcorn invocable with one extra method, `stack()`. It takes a serialized `CodegenModel` (the
+records, operations and types hydrated from your JSON Schema) plus options, and returns a map of
+relative file paths to contents. It never writes to disk; the caller decides where files go and how
+they're formatted.
+
+Because a generator is an ordinary invocable, it can be an in-process PHP emitter or another
+language's toolchain run in a sandbox, and callers can't tell the difference.
+
+{/* registry-facts:start — generated from the #[IsRegistry] declaration by `splicewire:beam:docs:registries:scaffold`. Rerun the command; do not edit between these markers. */}
+
+- **Root:** `codegen.generators`
+- **Entries:** `Rushing\Codegen\Contracts\Generator`
+- **Duplicate keys:** Supersede — a later registration under a taken key replaces the earlier entry, in its place
+- **Population:** Optional — an empty registry is normal
+- **Order:** `100` (display order, ascending)
+- **Declared by:** `Rushing\Codegen\GeneratorRegistry`
+
+{/* registry-facts:end */}
+
+## Registering a generator
+
+The package ships no generators. For a PHP emitter, `ClosureGenerator` saves writing a class:
+
+```php
+use Rushing\Codegen\GeneratorRegistry;
+use Rushing\Codegen\Generators\ClosureGenerator;
+
+$registry = new GeneratorRegistry;
+
+$registry->register(new ClosureGenerator('ts-client', fn (array $model, array $options) => [
+    'client.ts' => render_typescript_client($model),
+]));
+```
+
+A generator keys itself by `stack()`. For a heavier emitter, implement `Rushing\Codegen\Contracts\Generator`
+on a class of your own.
+
+In a Laravel application, [`rushing/laravel-codegen`](https://github.com/stephenr85/laravel-codegen)
+binds the registry as a singleton and registers every class listed in `config('codegen.generators')`
+at boot, resolved from the container so a generator can take constructor dependencies.
+
+## Running one
+
+```php
+$files = $registry->generate('ts-client', $model, ['namespace' => 'Api']);
+// ['client.ts' => '…']
+```
+
+`generate()` throws `RegistryMiss` for a stack nobody registered. `stacks()` lists the registered
+stack ids.
+
+## Duplicates
+
+The policy is **supersede**: registering a generator for a stack that's taken replaces it, which is
+how an application swaps a package's emitter for its own without callers changing.
+
+## Going deeper
+
+The source is
+[`GeneratorRegistry`](https://github.com/stephenr85/codegen/blob/main/src/GeneratorRegistry.php); the
+contract, with the exact input and output shapes, is
+[`Generator`](https://github.com/stephenr85/codegen/blob/main/src/Contracts/Generator.php).
+Invocables themselves are covered by popcorn's
+[`InvocableRegistry`](https://github.com/stephenr85/php-popcorn/blob/main/src/InvocableRegistry.php).
