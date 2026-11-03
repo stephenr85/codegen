@@ -2,7 +2,7 @@
 
 A framework-free kernel for **language-neutral code generation**. One fluent semantic meta-model
 (records, operations, type-kinds) — hydrated from the JSON Schema you already emit from your DTOs —
-driven to any target by **generators that are [popcorn](https://github.com/rushing/php-popcorn)
+driven to any target by **generators that are [popcorn](https://github.com/stephenr85/php-popcorn)
 invocables**.
 
 > "The format is the wheel; you build the wagon." The at-rest format is JSON Schema / OpenAPI
@@ -17,7 +17,7 @@ A **generator is a popcorn `Invocable`**: serialized-model-in → file-map-out. 
 - an **other-language toolchain** (jco/wasmtime for WIT bindings, `openapi-generator`, a Rust codegen
   crate) is a `RunnerInvocable`, sandboxed by its popcorn `Grant`;
 
-…and the **registry of stacks/languages is a popcorn `InvocableRegistry`**. Callers resolve a target
+…and the **registry of stacks/languages is a popcorn registry**, `GeneratorRegistry`, keyed by stack. Callers resolve a target
 by name and never see which kind it is. This package inherits invocation, override-by-name,
 sandboxing, and grants from popcorn and stays tiny.
 
@@ -29,6 +29,13 @@ sandboxing, and grants from popcorn and stays tiny.
 | `rushing/laravel-codegen` | open binding | artisan command, config, provider, generic emitters (codegen-substrate #04) |
 | schemastud (`laravel-data-schemas`) | open foundation | the primitive type-kind vocabulary, promoted down once stable (#08) |
 | `splicewire/phport` | **proprietary** | the porting mission: Rust `beam-core` → WASM, WIT bindings, the port (north star) |
+
+## Registries
+
+This package declares one registry:
+
+- [`codegen.generators`](docs/registries/codegen.generators.mdx): one generator per target stack,
+  each an invocable that turns a model into a file map.
 
 ## Status
 
