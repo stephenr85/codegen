@@ -43,7 +43,7 @@ use Rushing\Popcorn\Registries\RegistryKey;
     entryType: Generator::class,
     onKeyDuplicate: OnKeyDuplicate::Supersede,
     populationRequirement: PopulationRequirement::Optional,
-    description: 'code generators, one per target stack/language. A later registration of the same stack id overrides the earlier one: a host swapping the shipped `ts-client` emitter for its own is the seam, not an accident.',
+    description: 'code generators, one per target stack/language. This package ships no stack generator, only the ClosureGenerator adapter; hosts register their own. A later registration of the same stack id overrides the earlier one: a host swapping a registered `ts-client` emitter for its own is the seam, not an accident.',
 )]
 class GeneratorRegistry implements Gated, Registry
 {
