@@ -64,8 +64,9 @@ stack ids.
 
 ## Duplicates
 
-The policy is **supersede**: registering a generator for a stack that's taken replaces it, which is
-how an application swaps a package's emitter for its own without callers changing.
+The [**duplicate-key policy**](/beam/docs/foundations/registries#key-policies) is
+**supersede**: registering a generator for a stack that's taken replaces it, which is how an
+application swaps a package's emitter for its own without callers changing.
 
 ## Going deeper
 
